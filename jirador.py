@@ -414,7 +414,7 @@ def check_service(parametros):
 
 def main(tipo):
     try:
-        if tipo == 'SERVICIE':
+        if tipo == 'SERVICE':
             #Issue is raised for a service. Needs 8 args
             if len(sys.argv) != 8:
 
