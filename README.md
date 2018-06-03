@@ -1,83 +1,65 @@
 # Icinga2Jira
-Script para generar issues de Jira por problemas reportados en IcingaWeb2
+Create jira issues when a icingaweb2 notification is sent.
 
-## Requerimientos
-Python3
-jira-python (pip install jira)
-Servidor de Icingaweb2 con acceso API
-Servidor de JIRA
-
-## Objetivo
-Automatiza el proceso de generación de tickets en Jira si se envía una notificación de IcingaWeb2. 
-
-En el caso particular por lo que este script fue creado, el servidor de icingaweb2 sólo envia notificaciones por mail a los sysadmins si el servicio o host está marcado como crítico. Como la práctica es "Si es crítico, levantar ticket en jira y luego comentar el número de ticket en icingaweb2", se armó este script para automatizar este proceso.
-
-## Cómo funciona
-El script requiere que se le pasen parámetros.
-
-### Case: Service
-jirador.py SERVICIO TIPO_NOTI SERVICE_DESC HOST_ALIAS HOST_ADDRESS SERVICE_STATE SERVICE_OUTPUT
-
-### Case: Host
-jirador.py HOST TIPO_NOTI HOST_ALIAS HOST_ADDRESS HOST_STATE HOST_OUTPUT
-
-Cada uno de estos son generados por el script "mail_host_notification" y "mail_service_notification" de ejemplo de icingaweb2.
-
-Una vez que tenemos esos parámetros, el script se conecta a la instancia de Jira y revisa:
-* Si existe un ticket creado por este problema
-	* Si existe el ticket, no crea un ticket nuevo pero comenta en el mismo los datos que envía icingaweb2 (útil para hacer seguimiento)
-	* Si no existe el ticket, lo crea en el project_key especificado en el archivo de configuración
-* Si el host tiene VM_PARENT. Esta es una variable personalizada que tenemos en nuestro entorno de trabajo: indica el nombre del "parent vm" del host con problemas.
-	* Si el host está virtualizado (o sea, tiene vm parent), se fija si existe un ticket por problemas en el host vm parent.
-		* Si el parent vm no tiene ticket, crea un issue para el host que tiene problema
-		* Si el parent vm tiene ticket, no genera un ticket nuevo para este host (esto es para evitar generar tickets excesivamente, ya que un ticket para el servidor de virutalización alcanza)
-* Crea el ticket (si no estaba creado antes)
-	* Como componente, coloca el servidor/servicio que tiene el problema
-		* Si no existe el componente, lo crea.
-* Envía un comentario a icingaweb2, enlazando al issue generado.
-
-* Si se envía una notificación de RECOVERY (se levantó un servicio), cierra el ticket generado y comenta en el mismo el resultado
-
-## config.cfg
-
-El config.cfg es el archivo que tiene la configuración del script. Si algo de eso no está bien, el programa se rompe.
-
-[JIRA]
-La URL al server de Jira:
-url = https://JIRAURL.atlassian.net/
-El usuario que usará el script para login:
-username = USERNAME
-password = PASSWORD
-
-El Project key del proyecto en el que se generan los tickets. Por ejemplo: El ticket "SIS-1112" tiene como project key: "SIS"
-jira_key = PROJECT_KEY
-
-El tipo de issue. Por ejemplo "Incidente"
-jira_tipo_issue = TYPE_OF_ISSUE
-
-El Status que tiene el ticket al ser generado. Por ejemplo "Esperando por la asistencia"
-jira_status = STATUS_TYPE
-
-La etiqueta con la que se tiene que generar el ticket, útil para filtros
-label = icinga2
-
-ID de Transición del workflow que permite cerrar el ticket 
-transition = NUMBER OF TRANSITION
-
-Tipo de resolución (por ejemplo: Done)
-resolution = TYPE OF RESOLUTION
+## Origins
+I created this script at work, when I found out that our monitoring system (icinga2) sends emails to all sysadminds when a critical service or host is down. When a sysadmin acknowledges the issue on icinga, it also needs to create a jira issue by hand. This script automates that. When icinga2 sends the notification, it also creates the issue using the jira API
 
 
-[ICINGA2]
-Usuario y password para usar la api de icinga:
-api_user = API_USER
-api_password = AP_PASSWORD
+## Requirements
+* Python3
+* jira-python [Read the docs](https://jira.readthedocs.io/en/master/)
+* Icinga2
+* Api access for Icinga2 [Check Icinga2 Documentation ](https://www.icinga.com/docs/icinga2/latest/doc/12-icinga2-api/)
+* Jira instance
 
-URLS
-url = URLOFICINGAWEB2/v1/objects/
-url_com = URLOFICINGAWEB2/v1/actions/add-comment
-*url_com es la url de la api que agrega el comentario. Si además de generar el comentario queremos hacer un ack, url_com sería (por ejemplo) "https://localhost:5665/v1/actions/acknowledge-problem"
-		
-Cómo soy medio nuevo dentro de esto que es programar, se que se puede hacer bocha de refactoring. Pero no hay mucho de esto (y nos da una mano grande en el laburo). Espero que te sirva a vos también.
+## Objetive
+Create a Jira issue using the specified parameters inside config.cfg when the script is called, ideally when a icinga2 notification ([See here](https://www.icinga.com/docs/icinga2/latest/doc/03-monitoring-basics/#notifications)) is sent.
+
+## How does it work?
+The script was created by mimic the parameters icinga2 sends to the example scripts **mail_host_notification.sh** and **mail_service_notification.sh** that come with the default installation as examples (you can check them [here](https://github.com/Icinga/icinga2/tree/master/etc/icinga2/scripts)).
+
+If a **service** is down:
+
+    ./jirador.py SERVICE \
+		NOTIFICATION_TYPE\
+		SERVICE_DESCRIPTION\
+		HOST_ALIAS\
+		HOST_ADDRESS\
+		SERVICE_STATE\
+		SERVICE_OUTPUT
+
+If a **host** is down:
+
+    jirador.py HOST\
+		NOTIFICATION_TYPE\
+		HOST_ALIAS\
+		HOST_ADDRESS\
+		HOST_STATE\
+		HOST_OUTPUT
+
+When the script is called, checks for the firts parameter to determine if the issue is caused by a service or a host. After that, it connects to the Jira instance and:
+
+* Checks if there is already a ticket created for this service/host and tagged with the tags specified on the config.cfg (i.e "icinga2", so it can filter and specify only the issues generated with this script.)
+	* If there is already a ticket generated, it comments on it the default message, giving the SERVICE_STATE, SERVICE_OUTPUT and timestamps.
+	* If there is none, it creates one, creating a jira componment (by default, the HOST_ALIAS) if needed.
+
+In addition, when it creates a ticket, it checks if the HOST_ALIAS has a custom variable in icinga2 called "VmParent", that tells us if the specified host is a virtual one. If that is the case, jirador checks the status of the vmparent *before* creating an issue:
+* If the VmParent is Down, it does not create nothing (it will create an issue when icinga2 sends a notification for the VmParent)
+* If the VmParent is Up, it creates an issue for the HOST_ALIAS
+
+This was intented to limit the creating of issues on jira, i.e. if a VmParent is down, there is no need to create indivual tickets for all the virtual hosts on that parent, it only creates one.
+
+When the issue is created, it creates a comment on the host/service description on icinga2 linking to the jira issue. If you modify the **url_com** on the config.cfg, you can create an acknowledge instead of a comment, up to your sysadmin needs.
+
+When the host/service is in RECOVERY state, and you specify icinga2 to send emails of this RECOVERY, it will look for the issue on jira, comment on it the RECOVERY message and closes the issue.
+
+All the configurations are on the config.cfg.
 
 
+## TODO:
+* Check dependencies
+* Refactoring. Too much redundancy.
+	* Create a module to call instead of using jira_host and jira_service
+
+## Final words
+Im justs a n00b sysadmin, i know that this code could be improved, but it looks like a nice first step if you want to automate this proccess and populate your jira with monitoring alerts. More tickets, yay!
