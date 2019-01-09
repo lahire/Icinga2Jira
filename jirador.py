@@ -37,9 +37,9 @@ CONFIG = '/opt/icinga2-jira/config.cfg'
 # Custom Variable on icinga2 to check for vm parents
 VARS_VMPARENT = 'vm_parent'
 
-def check_dependencias(alias):
+def check_dependencies(alias):
     """
-        check_dependencias(alias):
+        check_dependencies(alias):
             TODO: Create a list of "dependencies"
             to check before creating an issue
             (for example: if a https service is down, check before if there is
@@ -49,38 +49,38 @@ def check_dependencias(alias):
     pass
     return True
 
-def jira_host(call,parametros):
+def jira_host(call,params):
     """
-    jira_host(call, parametros):
+    jira_host(call, params):
         All the functions to use with host are here. Hope to change This
         To use a module and save a lot of code.
     """
-    def jira_open(parametros):
+    def jira_open(params):
         """
-            jira_open(parametros):
+            jira_open(params):
                 opens the ticket on Jira.
                 Change the 'summary' with the title you want.
         """
         issue_dict = {
             'project': {'key': config['JIRA']['jira_key']},
-            'summary' : 'ICINGA2 | {0} - {1} is {2}'.format(parametros['tipo_notificacion'],
-                                                parametros['host_alias'],
-                                                parametros['host_state']),
+            'summary' : 'ICINGA2 | {0} - {1} is {2}'.format(params['tipo_notificacion'],
+                                                params['host_alias'],
+                                                params['host_state']),
             'description' : 'Notification Type: {0}\nHost Alias:\
          {1}\nHost Address: {2}\nHost State: {3}\nHost Output: {4}'                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          .format(
-                                                parametros['tipo_notificacion'],
-                                                parametros['host_alias'],
-                                                parametros['host_address'],
-                                                parametros['host_state'],
-                                                parametros['host_output']
+                                                params['tipo_notificacion'],
+                                                params['host_alias'],
+                                                params['host_address'],
+                                                params['host_state'],
+                                                params['host_output']
                                                 ),
             'labels' : [config['JIRA']['label'],'icinga2'],
-            'components' : [{'name': '{0}'.format(parametros['host_alias'])}],
+            'components' : [{'name': '{0}'.format(params['host_alias'])}],
             'issuetype' : {'name': config['JIRA']['jira_tipo_issue']},
         }
-        nuevo_issue = instance.create_issue(fields=issue_dict)
+        new_issue = instance.create_issue(fields=issue_dict)
         jason = """{0} "type": "Host", "host": "{1}", "author": "jirador", "comment": "<a href='{4}{2}' target='_blank'>{2}</a>", "notify": true {3}""".format(
-            chr(123), parametros['host_alias'], nuevo_issue, chr(125), config['JIRA']['url'])
+            chr(123), params['host_alias'], new_issue, chr(125), config['JIRA']['url'])
         o = str(subprocess.check_output(
                 """curl -k -s -u {0}:{1} -H 'Accept: application/json' '{2}' -d '{3}'""".format(
                     config['ICINGA2']['api_user'],
@@ -89,44 +89,44 @@ def jira_host(call,parametros):
                     jason), shell=True))
         return True
 
-    def jira_close(parametros):
+    def jira_close(params):
         """
-            jira_close(parametros)
+            jira_close(params)
                 Searches for the issue and closes it
                 Add comment with the last state.
         """
-        alias = parametros['host_alias']
+        alias = params['host_alias']
         ticket = jira_check(alias)
-        parametros['ticket'] = ticket[1]
-        jira_comment(parametros)
+        params['ticket'] = ticket[1]
+        jira_comment(params)
         instance.transition_issue(ticket[1],
         config['JIRA']['transition'],
         resolution={'name' : config['JIRA']['resolution']}
         )
         return True
 
-    def jira_comment(parametros):
+    def jira_comment(params):
         """
-            jira_comment(parametros)
+            jira_comment(params)
                 add a comment to an issue
 
         """
-        issue = parametros['ticket']
+        issue = params['ticket']
         instance.add_comment(issue,'Notification Type: {0}\nHost Alias:\
          {1}\nHost Address: {2}\nHost State: {3}\nHost Output: {4}'                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          .format(
-             parametros['tipo_notificacion'],
-             parametros['host_alias'],
-             parametros['host_address'],
-             parametros['host_state'],
-             parametros['host_output']
+             params['tipo_notificacion'],
+             params['host_alias'],
+             params['host_address'],
+             params['host_state'],
+             params['host_output']
          ))
         return True
 
     def jira_check(alias):
         """
             jira_check(alias):
-                Revisa si el alias no cuenta con ticket
-                (el alias está como tag), a futuro sería COMPONENTE
+            Check if the alias does not have a ticket
+                (the alias is as tag), in the future it would be COMPONENT
         """
         QUERY = 'project={0} AND issuetype={1} AND status="{2}" AND labels="{3}" AND labels="icinga2" AND component ="{4}"'.format(
             config['JIRA']['jira_key'],
@@ -153,35 +153,35 @@ def jira_host(call,parametros):
 
     if call == 'CHECK':
         try:
-            instance.create_component(parametros['host_alias'], config['JIRA']['jira_key'])
+            instance.create_component(params['host_alias'], config['JIRA']['jira_key'])
         except:
             pass
         try:
-            salida = jira_check(parametros['host_alias'])
-            return(salida)
+            exit = jira_check(params['host_alias'])
+            return(exit)
         except:
-            instance.create_component(config['JIRA']['jira_key'], parametros['host_alias'])
-            jira_host(call,parametros)
+            instance.create_component(config['JIRA']['jira_key'], params['host_alias'])
+            jira_host(call,params)
 
     elif call == 'OPEN':
-        jira_open(parametros)
+        jira_open(params)
     elif call == 'COMMENT':
-        return(jira_comment(parametros))
+        return(jira_comment(params))
     elif call == 'CLOSE':
-        return(jira_close(parametros))
+        return(jira_close(params))
 
-def check_host(parametros):
+def check_host(params):
     """
-    check_host(parametros):
+    check_host(params):
         If a host is down, checks if there an issue createdself.
         If there's an issue: comments on it.
         If not, checks for VmParent
                 If Vmparent is down: does nothing
                 If VmParent is up, creates an issue
     """
-    if parametros['host_state'] == 'DOWN':
-        salida = jira_host('CHECK',parametros)
-        if salida[0] == False: # No existe ticket para el elemento
+    if params['host_state'] == 'DOWN':
+        exit = jira_host('CHECK',params)
+        if exit[0] == False: # No existe ticket para el elemento
             #Checks for VmParent on icinga2
             o = str(subprocess.check_output(
                 shlex.split(
@@ -189,11 +189,11 @@ def check_host(parametros):
                         config['ICINGA2']['api_user'],
                         config['ICINGA2']['api_password'],
                         config['ICINGA2']['url'],
-                        parametros['host_alias'].lower()))))
+                        params['host_alias'].lower()))))
             o = o[2:-1]
-            salida = json.loads(o)
-            salida = salida['results'][0]
-            if VARS_VMPARENT in salida['attrs']['vars'].keys(): # VmParent is a Var of the host?
+            exit = json.loads(o)
+            exit = exit['results'][0]
+            if VARS_VMPARENT in exit['attrs']['vars'].keys(): # VmParent is a Var of the host?
                 VMPARENT = True
                 #Check status of VmParent
                 o = str(
@@ -203,12 +203,12 @@ def check_host(parametros):
                             format(config['ICINGA2']['api_user'],
                                    config['ICINGA2']['api_password'],
                                    config['ICINGA2']['url'],
-                                   salida['attrs']['vars'][VARS_VMPARENT]))))
+                                   exit['attrs']['vars'][VARS_VMPARENT]))))
                 o = o[2:-1]
-                salida_vmparent = json.loads(o)
-                salida_vmparent = salida_vmparent['results'][0]
-                if salida_vmparent['attrs']['state'] == 0.0: #VMPARENT OK, issues ticket
-                    jira_host('OPEN', parametros)
+                exit_vmparent = json.loads(o)
+                exit_vmparent = exit_vmparent['results'][0]
+                if exit_vmparent['attrs']['state'] == 0.0: #VMPARENT OK, issues ticket
+                    jira_host('OPEN', params)
                     return True
                 else:
                     #VMPARENT is NOT OK,
@@ -224,29 +224,29 @@ def check_host(parametros):
                 return True
             else:
                 # Opens Ticket
-                jira_host('OPEN',parametros)
+                jira_host('OPEN',params)
                 return True
         else:
             # Ticket exists, comments on it.
-            parametros['ticket'] = salida[1]
-            jira_host('COMMENT',parametros)
+            params['ticket'] = exit[1]
+            jira_host('COMMENT',params)
             return True
-    elif parametros['host_state'] == 'UP':
+    elif params['host_state'] == 'UP':
         # HOST IS UP
         # closes TICKET
-        jira_host('CLOSE',parametros)
+        jira_host('CLOSE',params)
         return True
 
 ####### SERVICE
-def jira_service(call, parametros):
+def jira_service(call, params):
     """
     jira_service
         same as jira_host. i don't know how to code
         Working to get this to a MODULE
     """
-    def jira_open(parametros):
+    def jira_open(params):
         """
-            jira_open(parametros):
+            jira_open(params):
                 Opens a jira issue
         """
         issue_dict = {
@@ -254,31 +254,31 @@ def jira_service(call, parametros):
                 'key': config['JIRA']['jira_key']
             },
             'summary':
-            'ICINGA2 | {0} - {1} - {2} is {3}'.format(parametros['tipo_notificacion'],
-                                      parametros['host_alias'],
-                                      parametros['service_desc'],
-                                      parametros['service_state']),
+            'ICINGA2 | {0} - {1} - {2} is {3}'.format(params['tipo_notificacion'],
+                                      params['host_alias'],
+                                      params['service_desc'],
+                                      params['service_state']),
             'description':
             'Notification Type: {0}\nService Description: {1}\nHost Alias:\
          {2}\nHost Address: {3}\nService State: {4}\nService Output: {5}'                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               .format(
-                parametros['tipo_notificacion'],
-                parametros['service_desc'],
-                parametros['host_alias'],
-                parametros['host_address'],
-                parametros['service_state'],
-                parametros['service_output']),
+                params['tipo_notificacion'],
+                params['service_desc'],
+                params['host_alias'],
+                params['host_address'],
+                params['service_state'],
+                params['service_output']),
             'labels': [config['JIRA']['label'],'icinga2'],
             'components': [{
-                'name': '{0}'.format(parametros['host_alias'])
+                'name': '{0}'.format(params['host_alias'])
             }],
             'issuetype': {
                 'name': config['JIRA']['jira_tipo_issue']
             },
         }
-        nuevo_issue = instance.create_issue(fields=issue_dict)
+        new_issue = instance.create_issue(fields=issue_dict)
         jason = """{0} "type": "Service", "service": "{1}!{2}", "author": "jirador", "comment":  "<a href={4}{3}' target='_blank' >{3}</a>", "notify": true {4}""".format(
-            chr(123), parametros['host_alias'], parametros['service_desc'],
-            nuevo_issue, chr(125), config['JIRA']['url'])
+            chr(123), params['host_alias'], params['service_desc'],
+            new_issue, chr(125), config['JIRA']['url'])
         o = str(
             subprocess.check_output(
                 """curl -k -s -u {0}:{1} -H 'Accept: application/json' '{2}' -d '{3}'""".
@@ -289,16 +289,16 @@ def jira_service(call, parametros):
         #print(o)
         return True
 
-    def jira_close(parametros):
+    def jira_close(params):
         """
-            jira_close(parametros)
+            jira_close(params)
                 closes a ticket
         """
-        alias = parametros['host_alias']
+        alias = params['host_alias']
         ticket = jira_check(alias)
         #print('Cerrando {0}'.format(ticket[1]))
-        parametros['ticket'] = ticket[1]
-        jira_comment(parametros)
+        params['ticket'] = ticket[1]
+        jira_comment(params)
         instance.transition_issue(
             ticket[1],
             config['JIRA']['transition'],
@@ -307,21 +307,21 @@ def jira_service(call, parametros):
             })
         return True
 
-    def jira_comment(parametros):
+    def jira_comment(params):
         """
-            jira_comment(parametros)
+            jira_comment(params)
                 comments on a ticket
 
         """
-        issue = parametros['ticket']
+        issue = params['ticket']
         instance.add_comment(issue, 'Notification Type: {0}\nService Description: {1} Host Alias:\
          {2}\nHost Address: {3}\nService State: {4}\nService Output: {5}'                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               .format(
-            parametros['tipo_notificacion'],
-            parametros['service_desc'],
-            parametros['host_alias'],
-            parametros['host_address'],
-            parametros['service_state'],
-            parametros['service_output']))
+            params['tipo_notificacion'],
+            params['service_desc'],
+            params['host_alias'],
+            params['host_address'],
+            params['service_state'],
+            params['service_output']))
         return True
 
     def jira_check(alias):
@@ -334,7 +334,7 @@ def jira_service(call, parametros):
             config['JIRA']['jira_key'],
             config['JIRA']['jira_tipo_issue'],
             config['JIRA']['jira_status'],
-            config['JIRA']['label'], parametros['host_alias'])
+            config['JIRA']['label'], params['host_alias'])
         result = instance.search_issues(QUERY)
         if len(result) == 0:
             # NO TICKET
@@ -355,24 +355,24 @@ def jira_service(call, parametros):
     if call == 'CHECK':
         try:
             #Creates component for alias.
-            instance.create_component(parametros['host_alias'], config['JIRA']['jira_key'])
+            instance.create_component(params['host_alias'], config['JIRA']['jira_key'])
         except:
             pass
         try:
-            salida = jira_check(parametros['service_desc'])
-            return (salida)
+            exit = jira_check(params['service_desc'])
+            return (exit)
         except:
-            jira_service(call, parametros)
+            jira_service(call, params)
     elif call == 'OPEN':
-        jira_open(parametros)
+        jira_open(params)
     elif call == 'COMMENT':
-        return (jira_comment(parametros))
+        return (jira_comment(params))
     elif call == 'CLOSE':
-        return (jira_close(parametros))
+        return (jira_close(params))
 
-def check_service(parametros):
+def check_service(params):
     """
-    check_service(parametros):
+    check_service(params):
         IF SERVICE IS CRITICAL / WARNING OR UNKNOWN
             CHECKS if ticket is up
              If ticket exists, comments on it
@@ -381,9 +381,9 @@ def check_service(parametros):
             #                    -> if host_alias is ok, raises a  ticket
     """
 
-    if parametros['service_state'] == 'CRITICAL' or parametros['service_state'] == 'WARNING' or parametros['service_state'] == 'UNKNOWN' :
-        salida = jira_service('CHECK', parametros)
-        if salida[0] == False: does not have a ticket
+    if params['service_state'] == 'CRITICAL' or params['service_state'] == 'WARNING' or params['service_state'] == 'UNKNOWN' :
+        exit = jira_service('CHECK', params)
+        if exit[0] == False: does not have a ticket
             o = str(
                 subprocess.check_output(
                     shlex.split(
@@ -391,23 +391,23 @@ def check_service(parametros):
                         format(config['ICINGA2']['api_user'],
                                config['ICINGA2']['api_password'],
                                config['ICINGA2']['url'],
-                               parametros['host_alias']))))
+                               params['host_alias']))))
             o = o[2:-1]
-            salida_hostalias = json.loads(o)
-            salida_hostalias = salida_hostalias['results'][0]
-            if salida_hostalias['attrs']['state'] == 0.0: #HOST IS OK
+            exit_hostalias = json.loads(o)
+            exit_hostalias = exit_hostalias['results'][0]
+            if exit_hostalias['attrs']['state'] == 0.0: #HOST IS OK
             #raises a ticket for service
-                jira_service('OPEN',parametros)
+                jira_service('OPEN',params)
                 return True
             else: #HOST_ALIAS NOT OK, ignores it
                 pass
         ###
         else: #has ticket, comments it
-            parametros['ticket'] = salida[1]
-            jira_service('COMMENT',parametros)
+            params['ticket'] = exit[1]
+            jira_service('COMMENT',params)
             return True
     else:  #Service is OK / closes ticket
-        jira_service('CLOSE', parametros)
+        jira_service('CLOSE', params)
         return True
 
 
@@ -419,7 +419,7 @@ def main(tipo):
             if len(sys.argv) != 8:
 
                 exit(1)
-            parametros = {
+            params = {
                 'tipo_notificacion': sys.argv[2].lower(),
                 'service_desc'     : sys.argv[3],
                 'host_alias'       : sys.argv[4],
@@ -427,21 +427,21 @@ def main(tipo):
                 'service_state'    : sys.argv[6].upper(),
                 'service_output'   : sys.argv[7].upper()
                 }
-            salida = check_service(parametros)
-            exit(salida)
+            exit = check_service(params)
+            exit(exit)
         elif tipo == 'HOST':
             #Issue is raised for a HOST. Needs 7 args
             if len(sys.argv) != 7:
                 exit(1)
-            parametros = {
+            params = {
                 'tipo_notificacion' : sys.argv[2].lower(),
                 'host_alias'        : sys.argv[3],
                 'host_address'      : sys.argv[4].upper(),
                 'host_state'        : sys.argv[5].upper(),
                 'host_output'       : sys.argv[6].upper()
             }
-            salida = check_host(parametros)
-            exit(salida)
+            exit = check_host(params)
+            exit(exit)
         else:
             exit(1)
     except IndexError:
