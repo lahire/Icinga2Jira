@@ -373,7 +373,7 @@ def jira_service(call, params):
 def check_service(params):
     """
     check_service(params):
-        IF SERVICE IS CRITICAL / WARNING OR UNKNOWN
+        IF SERVICE IS CRITICAL
             CHECKS if ticket is up
              If ticket exists, comments on it
             # if ticket does not exist -> checks if host_alias has a ticket
@@ -381,7 +381,7 @@ def check_service(params):
             #                    -> if host_alias is ok, raises a  ticket
     """
 
-    if params['service_state'] == 'CRITICAL' or params['service_state'] == 'WARNING' or params['service_state'] == 'UNKNOWN' :
+    if params['service_state'] == 'CRITICAL' :
         exit = jira_service('CHECK', params)
         if exit[0] == False: does not have a ticket
             o = str(
